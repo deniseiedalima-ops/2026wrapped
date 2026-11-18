@@ -59,66 +59,47 @@
   new MutationObserver(watch).observe(story, { attributes: true, subtree: true, attributeFilter: ['class'] });
   watch();
 
-  // html2canvas loader
+  // Biblioteca de captura (usa a renderização real do navegador: fontes, degradês e fotos ficam iguais)
   let libPromise;
   const loadLib = () => libPromise || (libPromise = new Promise((ok, fail) => {
-    if (window.html2canvas) return ok();
+    if (window.modernScreenshot) return ok();
     const s = document.createElement('script');
-    s.src = '/html2canvas.min.js';
+    s.src = '/modern-screenshot.js';
     s.onload = ok; s.onerror = fail;
     document.head.appendChild(s);
   }));
 
-  // Instagram story = 1080x1920 (9:16). Extra space top/bottom keeps text clear of Instagram's buttons.
+  // Instagram story = 1080x1920 (9:16). Espaço extra em cima/embaixo para os botões do Instagram.
   const SAFE = 70;
   async function renderSlide(slide) {
     const H = story.offsetHeight + SAFE * 2;
     const W = Math.round(H * 9 / 16);
     const box = document.createElement('div');
     box.className = 'story ewd-cap';
-    box.style.cssText = `position:fixed;left:0;top:0;width:${W}px;height:${H}px;z-index:-1;border-radius:0;box-shadow:none;margin:0;max-width:none;max-height:none`;
+    box.style.cssText = `position:fixed;left:0;top:0;width:${W}px;height:${H}px;min-height:0;max-width:none;max-height:none;z-index:-1;border-radius:0;box-shadow:none;margin:0`;
     const s = slide.cloneNode(true);
     s.classList.add('active');
     const cs = getComputedStyle(slide);
     s.style.paddingTop = (parseFloat(cs.paddingTop) + SAFE) + 'px';
     s.style.paddingBottom = (parseFloat(cs.paddingBottom) + SAFE) + 'px';
+    // mantém a mesma largura de texto do celular (mesmas quebras de linha), centralizado no story
+    const extra = Math.max(0, (W - story.offsetWidth) / 2);
+    s.style.setProperty('padding-left', (parseFloat(cs.paddingLeft) + extra) + 'px', 'important');
+    s.style.setProperty('padding-right', (parseFloat(cs.paddingRight) + extra) + 'px', 'important');
     box.appendChild(s);
     const top = story.querySelector('.top');
-    if (top) { const t = top.cloneNode(true); t.style.top = (top.offsetTop + SAFE) + 'px'; box.appendChild(t); }
+    if (top) { const t = top.cloneNode(true); const ex = Math.max(0, (W - story.offsetWidth) / 2); t.style.top = (top.offsetTop + SAFE) + 'px'; t.style.left = (top.offsetLeft + ex) + 'px'; t.style.right = (story.offsetWidth - top.offsetLeft - top.offsetWidth + ex) + 'px'; box.appendChild(t); }
     document.body.appendChild(box);
     try {
-      await fixCoverImages(box);
-      const canvas = await html2canvas(box, { scale: 1080 / W, backgroundColor: '#13002c', logging: false, useCORS: true });
-      // guarantee exactly 1080x1920
+      const canvas = await modernScreenshot.domToCanvas(box, {
+        width: W, height: H, scale: 1080 / W, backgroundColor: '#13002c',
+        style: { position: 'relative', left: '0', top: '0', zIndex: '0' },
+      });
       const out = document.createElement('canvas');
       out.width = 1080; out.height = 1920;
       out.getContext('2d').drawImage(canvas, 0, 0, 1080, 1920);
       return out;
     } finally { box.remove(); }
-  }
-
-  // html2canvas ignores object-fit:cover and stretches photos -> pre-crop them.
-  async function fixCoverImages(root) {
-    for (const img of root.querySelectorAll('img')) {
-      try { await img.decode(); } catch (e) {}
-      const cs = getComputedStyle(img);
-      const bw = img.clientWidth, bh = img.clientHeight;
-      const nw = img.naturalWidth, nh = img.naturalHeight;
-      if (!bw || !bh || !nw || !nh) continue;
-      const fit = cs.objectFit;
-      if (fit !== 'cover' && fit !== 'contain') continue;
-      const scale = fit === 'cover' ? Math.max(bw / nw, bh / nh) : Math.min(bw / nw, bh / nh);
-      const dw = nw * scale, dh = nh * scale;
-      const pos = (cs.objectPosition || '50% 50%').split(' ');
-      const px = v => v.endsWith('%') ? parseFloat(v) / 100 : (v === 'left' || v === 'top') ? 0 : (v === 'right' || v === 'bottom') ? 1 : .5;
-      const ox = (bw - dw) * px(pos[0] || '50%'), oy = (bh - dh) * px(pos[1] || '50%');
-      const k = 3, c = document.createElement('canvas');
-      c.width = Math.round(bw * k); c.height = Math.round(bh * k);
-      c.getContext('2d').drawImage(img, ox * k, oy * k, dw * k, dh * k);
-      img.style.objectFit = 'fill';
-      img.src = c.toDataURL('image/jpeg', .92);
-      try { await img.decode(); } catch (e) {}
-    }
   }
 
   let cache = null; // [{file, url}]
@@ -144,6 +125,7 @@
       if (!cache) {
         await loadLib();
         if (document.fonts && document.fonts.ready) await document.fonts.ready;
+        await renderSlide(slides()[0]).catch(() => {}); // aquecimento: o Safari às vezes erra a 1ª imagem
         const out = [];
         const all = slides();
         for (let i = 0; i < all.length; i++) {
