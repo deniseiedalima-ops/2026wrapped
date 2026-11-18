@@ -3,7 +3,7 @@
    the student can post on Instagram (share sheet on phones, download elsewhere). */
 (function () {
   const css = `
-  .ewd-share-btn{position:absolute;z-index:40;border:0;cursor:pointer;font-family:Nunito,Arial,sans-serif;font-weight:1000;text-transform:uppercase;letter-spacing:.5px}
+  .ewd-share-btn{position:absolute;z-index:1000;border:0;cursor:pointer;font-family:Nunito,Arial,sans-serif;font-weight:1000;text-transform:uppercase;letter-spacing:.5px}
   .ewd-share-mini{top:46px;right:16px;background:#ffffffe6;color:#111;border-radius:999px;padding:7px 12px;font-size:11px;box-shadow:0 4px 14px #0004}
   .ewd-share-big{left:50%;bottom:20px;transform:translateX(-50%);background:#b7ff38;color:#111;border-radius:999px;padding:12px 16px;font-size:13px;box-shadow:4px 5px 0 #111;white-space:nowrap;display:none}
   .ewd-share-big.show{display:block;animation:ewdpop .5s both}
